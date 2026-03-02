@@ -548,7 +548,7 @@ pub fn parseModelIds(allocator: std.mem.Allocator, json_response: []const u8) ![
 
 /// Create a fresh Config backed by an arena (for when Config.load() fails).
 /// Caller must call cfg.deinit() when done.
-fn initFreshConfig(backing_allocator: std.mem.Allocator) !Config {
+pub fn initFreshConfig(backing_allocator: std.mem.Allocator) !Config {
     const arena_ptr = try backing_allocator.create(std.heap.ArenaAllocator);
     arena_ptr.* = std.heap.ArenaAllocator.init(backing_allocator);
     errdefer {
@@ -800,7 +800,7 @@ fn selectableBackendsForWizard(allocator: std.mem.Allocator) ![]const *const mem
     return out.toOwnedSlice(allocator);
 }
 
-fn memoryProfileForBackend(backend: []const u8) []const u8 {
+pub fn memoryProfileForBackend(backend: []const u8) []const u8 {
     if (std.mem.eql(u8, backend, "sqlite")) return "local_keyword";
     if (std.mem.eql(u8, backend, "markdown")) return "markdown_only";
     if (std.mem.eql(u8, backend, "postgres")) return "postgres_keyword";
