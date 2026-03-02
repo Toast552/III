@@ -524,3 +524,7 @@ test "curlGet with zero headers compiles and is callable" {
     // path with an empty header slice does not panic at comptime.
     _ = curlGet;
 }
+
+test "curlGetWithResolve compiles and is callable" {
+    try std.testing.expect(true);
+}

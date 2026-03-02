@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # ── Stage 1: Build ────────────────────────────────────────────
-FROM alpine:3.23 AS builder
+# Build natively on the runner architecture and cross-compile per TARGETARCH.
+FROM --platform=$BUILDPLATFORM alpine:3.23 AS builder
 
 RUN apk add --no-cache zig musl-dev
 
@@ -11,7 +12,9 @@ COPY src/ src/
 COPY vendor/sqlite3/ vendor/sqlite3/
 
 ARG TARGETARCH
-RUN set -eu; \
+RUN --mount=type=cache,target=/root/.cache/zig \
+    --mount=type=cache,target=/app/.zig-cache \
+    set -eu; \
     arch="${TARGETARCH:-}"; \
     if [ -z "${arch}" ]; then \
       case "$(uname -m)" in \
