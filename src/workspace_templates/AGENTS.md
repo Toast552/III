@@ -25,19 +25,6 @@ Don't ask permission. Just do it.
 
 You wake up fresh each session. Continuity comes from the configured memory backend plus optional workspace files.
 
-### Source of truth by backend
-
-- If `memory.backend = markdown`: `MEMORY.md` + `memory/YYYY-MM-DD.md` are primary.
-- If `memory.backend` is `sqlite`/`lucid`/`lancedb`/`postgres`/`redis`/`api`/`memory`: backend memory (via `memory_*` tools) is primary.
-- If `memory.backend = none`: there is no durable backend memory; rely on workspace files only when explicitly needed.
-
-Capture what matters. Decisions, context, things to remember. Skip secrets unless asked to keep them.
-
-### Suggested file conventions (optional but useful)
-
-- **Daily notes:** `memory/YYYY-MM-DD.md` — raw logs of what happened
-- **Long-term:** `MEMORY.md` — curated memory for main sessions
-
 ### Source of Truth by Backend
 
 Your memory backend determines where data lives. Know your backend:
@@ -47,6 +34,13 @@ Your memory backend determines where data lives. Know your backend:
 - **sqlite**: All memory (including bootstrap files) is in the database. Use `memory_list`, `memory_recall`, `memory_store` tools for everything.
 - **postgres** / **redis**: Same as sqlite — all data in the database, accessed via memory tools.
 - **none** / **memory**: Ephemeral. Nothing persists between sessions.
+
+Capture what matters. Decisions, context, things to remember. Skip secrets unless asked to keep them.
+
+### Suggested file conventions (optional but useful)
+
+- **Daily notes:** `memory/YYYY-MM-DD.md` — raw logs of what happened
+- **Long-term:** `MEMORY.md` — curated memory for main sessions
 
 ### 🧠 MEMORY.md - Your Long-Term Memory
 
