@@ -117,9 +117,17 @@ pub const OpenRouterProvider = struct {
                     }
                 }
 
-                // OpenRouter also exposes reasoning in a dedicated field (some models)
+                // OpenRouter also exposes reasoning in dedicated fields.
+                // reasoning_content: Kimi K2.5, DeepSeek-R1 native field.
+                // reasoning: OpenRouter unified alias (same content, different key).
                 if (reasoning_content == null) {
                     if (msg_obj.get("reasoning_content")) |rc| {
+                        if (rc == .string and rc.string.len > 0)
+                            reasoning_content = try allocator.dupe(u8, rc.string);
+                    }
+                }
+                if (reasoning_content == null) {
+                    if (msg_obj.get("reasoning")) |rc| {
                         if (rc == .string and rc.string.len > 0)
                             reasoning_content = try allocator.dupe(u8, rc.string);
                     }
@@ -438,6 +446,7 @@ pub const OpenRouterProvider = struct {
 
         try buf.append(allocator, ']');
         try root.appendGenerationFields(&buf, allocator, model, temperature, request.max_tokens, request.reasoning_effort);
+        try appendOpenRouterReasoning(&buf, allocator, request.reasoning_effort);
 
         if (request.tools) |tools| {
             if (tools.len > 0) {
@@ -480,6 +489,7 @@ pub const OpenRouterProvider = struct {
 
         try buf.append(allocator, ']');
         try root.appendGenerationFields(&buf, allocator, model, temperature, request.max_tokens, request.reasoning_effort);
+        try appendOpenRouterReasoning(&buf, allocator, request.reasoning_effort);
 
         if (request.tools) |tools| {
             if (tools.len > 0) {
@@ -493,6 +503,22 @@ pub const OpenRouterProvider = struct {
         return try buf.toOwnedSlice(allocator);
     }
 };
+
+/// Append OpenRouter's unified reasoning parameter when reasoning_effort is set.
+/// OpenRouter models like Kimi K2.5 use {"reasoning":{"effort":"high"}} to include
+/// the reasoning trace in the response, regardless of whether they recognize
+/// the top-level reasoning_effort field that appendGenerationFields emits for o-series models.
+fn appendOpenRouterReasoning(
+    buf: *std.ArrayListUnmanaged(u8),
+    allocator: std.mem.Allocator,
+    reasoning_effort: ?[]const u8,
+) !void {
+    const effort = root.normalizeOpenAiReasoningEffort(reasoning_effort) orelse return;
+    if (std.mem.eql(u8, effort, "none")) return;
+    try buf.appendSlice(allocator, ",\"reasoning\":{\"effort\":\"");
+    try buf.appendSlice(allocator, effort);
+    try buf.appendSlice(allocator, "\"}");
+}
 
 /// HTTP GET via curl subprocess with auth header.
 fn curlGet(allocator: std.mem.Allocator, url: []const u8, auth_hdr: []const u8) ![]u8 {

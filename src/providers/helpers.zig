@@ -282,7 +282,7 @@ pub fn appendGenerationFields(
     }
 }
 
-fn normalizeOpenAiReasoningEffort(reasoning_effort: ?[]const u8) ?[]const u8 {
+pub fn normalizeOpenAiReasoningEffort(reasoning_effort: ?[]const u8) ?[]const u8 {
     const raw = reasoning_effort orelse return null;
     if (std.ascii.eqlIgnoreCase(raw, "none")) return "none";
     if (std.ascii.eqlIgnoreCase(raw, "minimal")) return "low";
