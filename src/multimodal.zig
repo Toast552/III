@@ -445,19 +445,20 @@ pub fn stripImageMarkers(arena: std.mem.Allocator, messages: []const ChatMessage
             continue;
         }
 
-        // Keep original content with image markers
+        const parsed = try parseImageMarkers(arena, msg.content);
+        const separator: []const u8 = if (parsed.cleaned_text.len > 0) "\n\n" else "";
         const note = try std.fmt.allocPrint(
             arena,
-            "\n[{d} image(s) included as paths - model may not support images]\n",
+            "[{d} image(s) omitted because the current model does not support vision]",
             .{marker_count},
         );
-        const final_content = try std.mem.concat(arena, u8, &.{ msg.content, note });
+        const final_content = try std.mem.concat(arena, u8, &.{ parsed.cleaned_text, separator, note });
         result[i] = .{
             .role = msg.role,
             .content = final_content,
             .name = msg.name,
             .tool_call_id = msg.tool_call_id,
-            .content_parts = msg.content_parts,
+            .content_parts = null,
         };
     }
 
@@ -557,6 +558,24 @@ test "parseImageMarkers case insensitive" {
         std.testing.allocator.free(parsed.refs);
     }
     try std.testing.expectEqual(@as(usize, 3), parsed.refs.len);
+}
+
+test "stripImageMarkers removes refs from most recent user message" {
+    const allocator = std.testing.allocator;
+    const messages = [_]ChatMessage{
+        .{ .role = .user, .content = "Older [IMAGE:/tmp/keep.png]" },
+        .{ .role = .assistant, .content = "ack" },
+        .{ .role = .user, .content = "Inspect [IMAGE:/tmp/a.png] and [IMAGE:/tmp/b.png]" },
+    };
+
+    var arena_impl = std.heap.ArenaAllocator.init(allocator);
+    defer arena_impl.deinit();
+
+    const stripped = try stripImageMarkers(arena_impl.allocator(), &messages);
+    try std.testing.expectEqual(@as(usize, 3), stripped.len);
+    try std.testing.expect(std.mem.indexOf(u8, stripped[0].content, "[IMAGE:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, stripped[2].content, "[IMAGE:") == null);
+    try std.testing.expect(std.mem.indexOf(u8, stripped[2].content, "2 image(s) omitted") != null);
 }
 
 test "parseImageMarkers invalid marker kept" {

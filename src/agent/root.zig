@@ -1110,11 +1110,10 @@ pub const Agent = struct {
 
         var iteration: u32 = 0;
         var forced_follow_through_count: u32 = 0;
-        while_loop: while (iteration < self.max_tool_iterations) : (iteration += 1) {
+        while (iteration < self.max_tool_iterations) : (iteration += 1) {
             if (self.isInterruptRequested()) {
                 return self.interruptedReply();
             }
-
 
             _ = iter_arena.reset(.retain_capacity);
             const arena = iter_arena.allocator();
@@ -1153,7 +1152,7 @@ pub const Agent = struct {
                     self.temperature,
                     self.stream_callback.?,
                     self.stream_ctx.?,
-                ) catch |err| {
+                ) catch |err| retry_stream: {
                     const fail_duration: u64 = @as(u64, @intCast(@max(0, std.time.milliTimestamp() - timer_start)));
                     const fail_event = ObserverEvent{ .llm_response = .{
                         .provider = self.provider.getName(),
@@ -1175,8 +1174,9 @@ pub const Agent = struct {
                             retry_msgs,
                             if (native_tools_enabled) turn_tool_specs else null,
                         );
+                        response_attempt = 2;
                         self.logLlmRequest(iteration + 1, 2, retry_msgs, native_tools_enabled, true);
-                        const stream_retry = self.provider.streamChat(
+                        break :retry_stream self.provider.streamChat(
                             self.allocator,
                             .{
                                 .messages = retry_msgs,
@@ -1195,13 +1195,6 @@ pub const Agent = struct {
                             self.emitUsageFailure();
                             return retry_err;
                         };
-                        response = ChatResponse{
-                            .content = stream_retry.content,
-                            .tool_calls = &.{},
-                            .usage = stream_retry.usage,
-                            .model = stream_retry.model,
-                        };
-                        continue :while_loop;
                     }
 
                     self.emitUsageFailure();
@@ -1900,7 +1893,6 @@ pub const Agent = struct {
                 if (verbose_mod.isVerbose()) {
                     const output_preview = if (result.output.len > 256) result.output[0..256] else result.output;
                     log.info("tool result: name={s} success={} output_len={d} output={s}...", .{ call.name, result.success, result.output.len, output_preview });
-
                 }
                 return .{
                     .name = call.name,
@@ -2717,7 +2709,8 @@ test "Agent buildProviderMessages uses model-aware vision capability" {
     const text_model_messages = try agent.buildProviderMessages(arena);
     try std.testing.expectEqual(@as(usize, 1), text_model_messages.len);
     try std.testing.expect(text_model_messages[0].content_parts == null);
-    try std.testing.expect(std.mem.indexOf(u8, text_model_messages[0].content, "[IMAGE:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text_model_messages[0].content, "[IMAGE:") == null);
+    try std.testing.expect(std.mem.indexOf(u8, text_model_messages[0].content, "omitted because the current model does not support vision") != null);
 
     agent.model_name = "vision-model";
     const messages = try agent.buildProviderMessages(arena);

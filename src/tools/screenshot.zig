@@ -10,7 +10,7 @@ const log = std.log.scoped(.screenshot);
 /// Screenshot tool — capture the screen using platform-native commands.
 /// macOS: `screencapture -x FILE`
 /// Linux: `import FILE` (ImageMagick)
-/// Windows: PowerShell clipboard-based screenshot
+/// Windows: PowerShell-based screen capture
 pub const ScreenshotTool = struct {
     workspace_dir: []const u8,
 
@@ -74,12 +74,13 @@ pub const ScreenshotTool = struct {
                     log.info("output_path: {s}", .{output_path});
                 }
 
-                const argv_win = try allocator.alloc([]const u8, 5);
+                const argv_win = try allocator.alloc([]const u8, 6);
                 argv_win[0] = "powershell.exe";
                 argv_win[1] = "-NoProfile";
                 argv_win[2] = "-ExecutionPolicy";
                 argv_win[3] = "Bypass";
-                argv_win[4] = ps_script;
+                argv_win[4] = "-Command";
+                argv_win[5] = ps_script;
 
                 break :blk argv_win;
             },
@@ -92,7 +93,7 @@ pub const ScreenshotTool = struct {
 
         const result = proc.run(allocator, argv, .{}) catch |err| {
             if (comptime builtin.os.tag == .windows) {
-                allocator.free(argv[4]);
+                allocator.free(argv[5]);
                 allocator.free(argv);
             }
             log.err("Failed to spawn: {s}", .{@errorName(err)});
@@ -100,7 +101,7 @@ pub const ScreenshotTool = struct {
         };
         defer result.deinit(allocator);
         if (comptime builtin.os.tag == .windows) {
-            allocator.free(argv[4]);
+            allocator.free(argv[5]);
             allocator.free(argv);
         }
 

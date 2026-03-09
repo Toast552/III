@@ -5,6 +5,29 @@ const http_util = @import("../http_util.zig");
 const platform = @import("../platform.zig");
 const error_classify = @import("error_classify.zig");
 const verbose = @import("../verbose.zig");
+const log = std.log.scoped(.provider_sse);
+
+fn finalizeStreamResult(
+    allocator: std.mem.Allocator,
+    accumulated: []const u8,
+    output_tokens: ?u32,
+) !root.StreamChatResult {
+    const content = if (accumulated.len > 0)
+        try allocator.dupe(u8, accumulated)
+    else
+        null;
+
+    const completion_tokens = if (output_tokens) |ot|
+        (if (ot > 0) ot else @as(u32, @intCast((accumulated.len + 3) / 4)))
+    else
+        @as(u32, @intCast((accumulated.len + 3) / 4));
+
+    return .{
+        .content = content,
+        .usage = .{ .completion_tokens = completion_tokens },
+        .model = "",
+    };
+}
 
 /// Result of parsing a single SSE line.
 pub const SseLineResult = union(enum) {
@@ -171,6 +194,7 @@ pub fn curlStream(
         tmp_file.close();
 
         used_temp_file = true;
+        errdefer std.fs.deleteFileAbsolute(body_path_buf[0..body_path_len]) catch {};
         if (log_enabled) {
             debug_log.info("Using temp file for body: {s}, body_len={d}", .{ body_path, body.len });
         }
@@ -200,6 +224,10 @@ pub fn curlStream(
     argc += 1;
     argv_buf[argc] = url;
     argc += 1;
+    defer if (used_temp_file) {
+        std.fs.deleteFileAbsolute(body_path_buf[0..body_path_len]) catch {};
+        allocator.free(body_arg);
+    };
 
     // Debug: log the curl command
     if (log_enabled) {
@@ -275,19 +303,20 @@ pub fn curlStream(
             // This is a JSON error, not SSE
             const json_response = try allocator.dupe(u8, read_buf[0..n]);
             defer allocator.free(json_response);
-            
+
             // Try to classify the error
             const parsed = std.json.parseFromSlice(std.json.Value, allocator, json_response, .{}) catch null;
             if (parsed) |p| {
                 defer p.deinit();
                 if (error_classify.classifyKnownApiError(p.value.object)) |kind| {
+                    _ = child.wait() catch {};
                     return error_classify.kindToError(kind);
                 }
             }
-            
+
             // Return a meaningful error
-            const log = std.log.scoped(.sse);
-            log.err("Server returned JSON error: {s}", .{json_response});
+            _ = child.wait() catch {};
+            debug_log.err("Server returned JSON error: {s}", .{json_response});
             return error.ServerError;
         }
 
@@ -355,38 +384,40 @@ pub fn curlStream(
     if (log_enabled) {
         debug_log.info("waiting for curl process to exit...", .{});
     }
-    const term = child.wait() catch return error.CurlWaitError;
+    const term = child.wait() catch |err| {
+        log.err("curlStream child.wait failed: {}", .{err});
+        if (saw_done) {
+            log.warn("curlStream proceeding despite wait failure after receiving stream data", .{});
+            callback(ctx, root.StreamChunk.finalChunk());
+            return finalizeStreamResult(allocator, accumulated.items, null);
+        }
+        return error.CurlWaitError;
+    };
     if (log_enabled) {
         debug_log.info("curl process terminated: {}", .{term});
     }
     switch (term) {
         .Exited => |code| if (code != 0) {
-            const log = std.log.scoped(.sse);
-            log.err("curl failed with exit code={d}, url={s}", .{ code, url });
+            if (saw_done) {
+                log.warn("curlStream exit code {d} after stream data; returning accumulated output", .{code});
+                callback(ctx, root.StreamChunk.finalChunk());
+                return finalizeStreamResult(allocator, accumulated.items, null);
+            }
             return error.CurlFailed;
         },
-        else => return error.CurlFailed,
-    }
-
-    // Clean up temp file if we created one
-    if (used_temp_file) {
-        std.fs.deleteFileAbsolute(body_path_buf[0..body_path_len]) catch {};
-        allocator.free(body_arg);
+        else => {
+            if (saw_done) {
+                log.warn("curlStream abnormal termination after stream data; returning accumulated output", .{});
+                callback(ctx, root.StreamChunk.finalChunk());
+                return finalizeStreamResult(allocator, accumulated.items, null);
+            }
+            return error.CurlFailed;
+        },
     }
 
     // Signal stream completion only after curl exits successfully.
     callback(ctx, root.StreamChunk.finalChunk());
-
-    const content = if (accumulated.items.len > 0)
-        try allocator.dupe(u8, accumulated.items)
-    else
-        null;
-
-    return .{
-        .content = content,
-        .usage = .{ .completion_tokens = @intCast((accumulated.items.len + 3) / 4) },
-        .model = "",
-    };
+    return finalizeStreamResult(allocator, accumulated.items, null);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
