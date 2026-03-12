@@ -466,8 +466,18 @@ Config: `~/.nullclaw/config.json` (created by `onboard`)
 Telegram forum topics:
 
 - Topic session isolation is automatic. You do not add a `topic_id` field under `channels.telegram`.
+- The easiest operator flow is:
+  1. define named agent profiles under `agents.list`
+  2. open the target Telegram chat or forum topic
+  3. run `/bind <agent>`
 - To bind a specific Telegram forum topic to a specific agent, use `bindings[].match.peer.id` with the canonical thread form `"<chat_id>:thread:<topic_id>"`.
 - To bind the whole Telegram group as a fallback for all other topics, keep a normal group binding with `"<chat_id>"`.
+- `/bind status` shows the current effective route and the available agent ids.
+- `/bind clear` removes only the exact binding for the current account/chat/topic and falls back to the broader route.
+- `/bind` persists an exact `bindings[]` entry for the current Telegram account and peer.
+- `/bind status` distinguishes an exact local override from an inherited broader fallback.
+- Topic-specific bindings win over group fallback by route priority; the order in `bindings[]` does not matter.
+- Telegram menu visibility for `/bind` is controlled by `channels.telegram.accounts.<id>.binding_commands_enabled`.
 
 Example:
 
@@ -495,6 +505,61 @@ Example:
 ```
 
 In that setup, topic `42` routes to `coder`, while the rest of the forum falls back to `orchestrator`.
+
+Named agent profiles are configured separately from bindings. Bindings only choose which named agent handles a given chat/topic.
+
+Minimal end-to-end example:
+
+```json
+{
+  "agents": {
+    "list": [
+      {
+        "id": "orchestrator",
+        "provider": "openrouter",
+        "model": "anthropic/claude-sonnet-4"
+      },
+      {
+        "id": "coder",
+        "provider": "ollama",
+        "model": "qwen2.5-coder:14b",
+        "system_prompt": "You are the coding agent for this topic."
+      }
+    ]
+  },
+  "channels": {
+    "telegram": {
+      "accounts": {
+        "main": {
+          "bot_token": "123456:ABCDEF",
+          "allow_from": ["YOUR_TELEGRAM_USER_ID"],
+          "binding_commands_enabled": true,
+          "topic_commands_enabled": true,
+          "topic_map_command_enabled": true,
+          "commands_menu_mode": "scoped"
+        }
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agent_id": "orchestrator",
+      "match": {
+        "channel": "telegram",
+        "account_id": "main",
+        "peer": { "kind": "group", "id": "-1001234567890" }
+      }
+    }
+  ]
+}
+```
+
+Operator flow:
+
+- Send `/bind coder` inside the target forum topic.
+- `nullclaw` writes a new exact `bindings[]` entry to `~/.nullclaw/config.json` for that topic and Telegram account.
+- The next message in that topic uses the new routed agent profile.
+- `nullclaw` must have write access to `~/.nullclaw/config.json` for `/bind` to persist changes.
 
 About `account_id`:
 
