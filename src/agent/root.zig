@@ -1678,6 +1678,7 @@ pub const Agent = struct {
                     self.allocator,
                     .{
                         .messages = messages,
+                        .session_id = self.memory_session_id,
                         .model = turn_model_name,
                         .temperature = self.temperature,
                         .max_tokens = request_max_tokens,
@@ -1719,6 +1720,7 @@ pub const Agent = struct {
                             self.allocator,
                             .{
                                 .messages = retry_msgs,
+                                .session_id = self.memory_session_id,
                                 .model = turn_model_name,
                                 .temperature = self.temperature,
                                 .max_tokens = retry_max_tokens,
@@ -1753,6 +1755,7 @@ pub const Agent = struct {
                     self.allocator,
                     .{
                         .messages = messages,
+                        .session_id = self.memory_session_id,
                         .model = turn_model_name,
                         .temperature = self.temperature,
                         .max_tokens = request_max_tokens,
@@ -1793,6 +1796,7 @@ pub const Agent = struct {
                             self.allocator,
                             .{
                                 .messages = retry_msgs,
+                                .session_id = self.memory_session_id,
                                 .model = turn_model_name,
                                 .temperature = self.temperature,
                                 .max_tokens = retry_max_tokens,
@@ -1829,6 +1833,7 @@ pub const Agent = struct {
                             self.allocator,
                             .{
                                 .messages = recovery_msgs,
+                                .session_id = self.memory_session_id,
                                 .model = turn_model_name,
                                 .temperature = self.temperature,
                                 .max_tokens = recovery_max_tokens,
@@ -1853,6 +1858,7 @@ pub const Agent = struct {
                         self.allocator,
                         .{
                             .messages = messages,
+                            .session_id = self.memory_session_id,
                             .model = turn_model_name,
                             .temperature = self.temperature,
                             .max_tokens = request_max_tokens,
@@ -1880,6 +1886,7 @@ pub const Agent = struct {
                                 self.allocator,
                                 .{
                                     .messages = recovery_msgs,
+                                    .session_id = self.memory_session_id,
                                     .model = turn_model_name,
                                     .temperature = self.temperature,
                                     .max_tokens = recovery_max_tokens,
