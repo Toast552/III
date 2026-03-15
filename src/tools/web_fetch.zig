@@ -23,9 +23,9 @@ pub const WebFetchTool = struct {
     allowed_domains: []const []const u8 = &.{}, // empty = allow all
 
     pub const tool_name = "web_fetch";
-    pub const tool_description = "Fetch a web page and extract its text content. Converts HTML to readable text with markdown formatting.";
+    pub const tool_description = "Fetch an HTTPS web page and extract its text content. Converts HTML to readable text with markdown formatting.";
     pub const tool_params =
-        \\{"type":"object","properties":{"url":{"type":"string","description":"URL to fetch (http or https)"},"max_chars":{"type":"integer","default":50000,"description":"Maximum characters to return"}},"required":["url"]}
+        \\{"type":"object","properties":{"url":{"type":"string","description":"HTTPS URL to fetch"},"max_chars":{"type":"integer","default":50000,"description":"Maximum characters to return"}},"required":["url"]}
     ;
 
     const vtable = root.ToolVTable(@This());
@@ -463,8 +463,13 @@ test "WebFetchTool name and description" {
     var wft = WebFetchTool{};
     const t = wft.tool();
     try testing.expectEqualStrings("web_fetch", t.name());
-    try testing.expect(t.description().len > 0);
-    try testing.expect(t.parametersJson()[0] == '{');
+    const description = t.description();
+    const schema = t.parametersJson();
+    try testing.expect(description.len > 0);
+    try testing.expect(std.mem.indexOf(u8, description, "HTTPS") != null);
+    try testing.expect(schema[0] == '{');
+    try testing.expect(std.mem.indexOf(u8, schema, "HTTPS URL to fetch") != null);
+    try testing.expect(std.mem.indexOf(u8, schema, "http or https") == null);
 }
 
 test "WebFetchTool missing url fails" {

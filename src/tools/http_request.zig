@@ -17,10 +17,10 @@ pub const HttpRequestTool = struct {
     max_response_size: u32 = 1_000_000,
 
     pub const tool_name = "http_request";
-    pub const tool_description = "Make HTTP requests to external APIs. Supports GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS methods. " ++
-        "Security: allowlist-only domains, no local/private hosts, SSRF protection.";
+    pub const tool_description = "Make HTTPS requests to external APIs. Supports GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS methods. " ++
+        "Security: allowlist-only domains, SSRF protection, and allowlisted hosts may reach local/private addresses.";
     pub const tool_params =
-        \\{"type":"object","properties":{"url":{"type":"string","description":"HTTP or HTTPS URL to request"},"method":{"type":"string","description":"HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)","default":"GET"},"headers":{"type":"object","description":"Optional HTTP headers as key-value pairs"},"body":{"type":"string","description":"Optional request body"}},"required":["url"]}
+        \\{"type":"object","properties":{"url":{"type":"string","description":"HTTPS URL to request"},"method":{"type":"string","description":"HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)","default":"GET"},"headers":{"type":"object","description":"Optional HTTP headers as key-value pairs"},"body":{"type":"string","description":"Optional request body"}},"required":["url"]}
     ;
 
     const vtable = root.ToolVTable(@This());
@@ -534,7 +534,10 @@ test "http_request tool name" {
 test "http_request tool description not empty" {
     var ht = HttpRequestTool{};
     const t = ht.tool();
-    try std.testing.expect(t.description().len > 0);
+    const description = t.description();
+    try std.testing.expect(description.len > 0);
+    try std.testing.expect(std.mem.indexOf(u8, description, "HTTPS") != null);
+    try std.testing.expect(std.mem.indexOf(u8, description, "allowlisted hosts may reach local/private addresses") != null);
 }
 
 test "http_request schema has url" {
@@ -542,6 +545,8 @@ test "http_request schema has url" {
     const t = ht.tool();
     const schema = t.parametersJson();
     try std.testing.expect(std.mem.indexOf(u8, schema, "url") != null);
+    try std.testing.expect(std.mem.indexOf(u8, schema, "HTTPS URL to request") != null);
+    try std.testing.expect(std.mem.indexOf(u8, schema, "HTTP or HTTPS URL to request") == null);
 }
 
 test "http_request schema has headers" {
