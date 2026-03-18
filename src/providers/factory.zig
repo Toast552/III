@@ -354,7 +354,7 @@ pub const ProviderHolder = union(enum) {
             .gemini_provider => .{ .gemini = gemini.GeminiProvider.init(allocator, api_key) },
             .vertex_provider => .{ .vertex = vertex.VertexProvider.init(allocator, api_key, base_url) },
             .ollama_provider => blk: {
-                var prov = ollama.OllamaProvider.init(allocator, base_url);
+                var prov = ollama.OllamaProvider.init(allocator, base_url, api_key);
                 prov.native_tools = native_tools;
                 break :blk .{ .ollama = prov };
             },
