@@ -34,7 +34,6 @@ fn hashWithCanonicalLineEndings(bytes: []const u8) [std.crypto.hash.sha2.Sha256.
         }
     }
     if (chunk_start < bytes.len) hasher.update(bytes[chunk_start..]);
-
     var digest: [std.crypto.hash.sha2.Sha256.digest_length]u8 = undefined;
     hasher.final(&digest);
     return digest;
@@ -51,22 +50,18 @@ fn verifyVendoredSqliteHashes(b: *std.Build) !void {
     for (VENDORED_SQLITE_HASHES) |entry| {
         const file_path = b.pathFromRoot(entry.path);
         defer b.allocator.free(file_path);
-
         const bytes = readFileAllocCompat(std.fs.cwd(), b.allocator, file_path, max_vendor_file_size) catch |err| {
             std.log.err("failed to read {s}: {s}", .{ file_path, @errorName(err) });
             return err;
         };
         defer b.allocator.free(bytes);
-
         const digest = hashWithCanonicalLineEndings(bytes);
-
         const actual_hex_buf = std.fmt.bytesToHex(digest, .lower);
         const actual_hex = actual_hex_buf[0..];
-
         if (!std.mem.eql(u8, actual_hex, entry.sha256_hex)) {
             std.log.err("vendored sqlite checksum mismatch for {s}", .{entry.path});
             std.log.err("expected: {s}", .{entry.sha256_hex});
-            std.log.err("actual:   {s}", .{actual_hex});
+            std.log.err("actual: {s}", .{actual_hex});
             return error.VendoredSqliteChecksumMismatch;
         }
     }
@@ -98,29 +93,11 @@ const ChannelSelection = struct {
     enable_channel_max: bool = false,
 
     fn enableAll(self: *ChannelSelection) void {
-        self.enable_channel_cli = true;
-        self.enable_channel_telegram = true;
-        self.enable_channel_discord = true;
-        self.enable_channel_slack = true;
-        self.enable_channel_whatsapp = true;
-        self.enable_channel_teams = true;
-        self.enable_channel_matrix = true;
-        self.enable_channel_mattermost = true;
-        self.enable_channel_irc = true;
-        self.enable_channel_imessage = true;
-        self.enable_channel_email = true;
-        self.enable_channel_lark = true;
-        self.enable_channel_dingtalk = true;
-        self.enable_channel_wechat = true;
-        self.enable_channel_wecom = true;
-        self.enable_channel_line = true;
-        self.enable_channel_onebot = true;
-        self.enable_channel_qq = true;
-        self.enable_channel_maixcam = true;
-        self.enable_channel_signal = true;
-        self.enable_channel_nostr = true;
-        self.enable_channel_web = true;
-        self.enable_channel_max = true;
+        inline for (@typeInfo(ChannelSelection).Struct.fields) |field_info| {
+            if (field_info.type == bool) {
+                @field(self, field_info.name) = true;
+            }
+        }
     }
 };
 
@@ -137,75 +114,42 @@ fn parseChannelsOption(raw: []const u8) !ChannelSelection {
         std.log.err("empty -Dchannels list; use e.g. -Dchannels=all or -Dchannels=telegram,slack", .{});
         return error.InvalidChannelsOption;
     }
-
     var saw_token = false;
     var saw_all = false;
     var saw_none = false;
-
     var it = std.mem.splitScalar(u8, trimmed, ',');
     while (it.next()) |token_raw| {
         const token = std.mem.trim(u8, token_raw, " \t\r\n");
         if (token.len == 0) continue;
         saw_token = true;
-
         if (std.mem.eql(u8, token, "all")) {
             saw_all = true;
             selection.enableAll();
+            continue;
         } else if (std.mem.eql(u8, token, "none")) {
             saw_none = true;
             selection = .{};
-        } else if (std.mem.eql(u8, token, "cli")) {
-            selection.enable_channel_cli = true;
-        } else if (std.mem.eql(u8, token, "telegram")) {
-            selection.enable_channel_telegram = true;
-        } else if (std.mem.eql(u8, token, "discord")) {
-            selection.enable_channel_discord = true;
-        } else if (std.mem.eql(u8, token, "slack")) {
-            selection.enable_channel_slack = true;
-        } else if (std.mem.eql(u8, token, "whatsapp")) {
-            selection.enable_channel_whatsapp = true;
-        } else if (std.mem.eql(u8, token, "teams")) {
-            selection.enable_channel_teams = true;
-        } else if (std.mem.eql(u8, token, "matrix")) {
-            selection.enable_channel_matrix = true;
-        } else if (std.mem.eql(u8, token, "mattermost")) {
-            selection.enable_channel_mattermost = true;
-        } else if (std.mem.eql(u8, token, "irc")) {
-            selection.enable_channel_irc = true;
-        } else if (std.mem.eql(u8, token, "imessage")) {
-            selection.enable_channel_imessage = true;
-        } else if (std.mem.eql(u8, token, "email")) {
-            selection.enable_channel_email = true;
-        } else if (std.mem.eql(u8, token, "lark")) {
-            selection.enable_channel_lark = true;
-        } else if (std.mem.eql(u8, token, "dingtalk")) {
-            selection.enable_channel_dingtalk = true;
-        } else if (std.mem.eql(u8, token, "wechat")) {
-            selection.enable_channel_wechat = true;
-        } else if (std.mem.eql(u8, token, "wecom")) {
-            selection.enable_channel_wecom = true;
-        } else if (std.mem.eql(u8, token, "line")) {
-            selection.enable_channel_line = true;
-        } else if (std.mem.eql(u8, token, "onebot")) {
-            selection.enable_channel_onebot = true;
-        } else if (std.mem.eql(u8, token, "qq")) {
-            selection.enable_channel_qq = true;
-        } else if (std.mem.eql(u8, token, "maixcam")) {
-            selection.enable_channel_maixcam = true;
-        } else if (std.mem.eql(u8, token, "signal")) {
-            selection.enable_channel_signal = true;
-        } else if (std.mem.eql(u8, token, "nostr")) {
-            selection.enable_channel_nostr = true;
-        } else if (std.mem.eql(u8, token, "web")) {
-            selection.enable_channel_web = true;
-        } else if (std.mem.eql(u8, token, "max")) {
-            selection.enable_channel_max = true;
-        } else {
+            continue;
+        }
+        // table-driven match for all enable_channel_* fields (auto-generated from struct)
+        var matched = false;
+        inline for (@typeInfo(ChannelSelection).Struct.fields) |field_info| {
+            if (field_info.type == bool) {
+                const field_name = field_info.name;
+                if (std.mem.startsWith(u8, field_name, "enable_channel_")) {
+                    const token_name = field_name["enable_channel_".len..];
+                    if (std.mem.eql(u8, token, token_name)) {
+                        @field(selection, field_name) = true;
+                        matched = true;
+                    }
+                }
+            }
+        }
+        if (!matched) {
             std.log.err("unknown channel '{s}' in -Dchannels list", .{token});
             return error.InvalidChannelsOption;
         }
     }
-
     if (!saw_token) {
         std.log.err("empty -Dchannels list; use e.g. -Dchannels=all or -Dchannels=telegram,slack", .{});
         return error.InvalidChannelsOption;
@@ -214,9 +158,20 @@ fn parseChannelsOption(raw: []const u8) !ChannelSelection {
         std.log.err("ambiguous -Dchannels list: cannot combine 'all' with 'none'", .{});
         return error.InvalidChannelsOption;
     }
-
     return selection;
 }
+
+const engine_options = [_]struct { token: []const u8, field: []const u8 }{
+    .{ .token = "markdown", .field = "enable_memory_markdown" },
+    .{ .token = "memory", .field = "enable_memory_memory" },
+    .{ .token = "api", .field = "enable_memory_api" },
+    .{ .token = "sqlite", .field = "enable_memory_sqlite" },
+    .{ .token = "lucid", .field = "enable_memory_lucid" },
+    .{ .token = "redis", .field = "enable_memory_redis" },
+    .{ .token = "lancedb", .field = "enable_memory_lancedb" },
+    .{ .token = "postgres", .field = "enable_postgres" },
+    .{ .token = "clickhouse", .field = "enable_memory_clickhouse" },
+};
 
 const EngineSelection = struct {
     // Base backends
@@ -224,8 +179,7 @@ const EngineSelection = struct {
     enable_memory_markdown: bool = false,
     enable_memory_memory: bool = false,
     enable_memory_api: bool = false,
-
-    // Optional backends
+    // Optional backends + sqlite runtime dependency
     enable_sqlite: bool = false,
     enable_memory_sqlite: bool = false,
     enable_memory_lucid: bool = false,
@@ -235,19 +189,29 @@ const EngineSelection = struct {
     enable_memory_clickhouse: bool = false,
 
     fn enableBase(self: *EngineSelection) void {
-        self.enable_memory_none = true;
-        self.enable_memory_markdown = true;
-        self.enable_memory_memory = true;
-        self.enable_memory_api = true;
+        const base = [_][]const u8{
+            "enable_memory_none",
+            "enable_memory_markdown",
+            "enable_memory_memory",
+            "enable_memory_api",
+        };
+        inline for (base) |field_name| {
+            @field(self, field_name) = true;
+        }
     }
 
     fn enableAllOptional(self: *EngineSelection) void {
-        self.enable_memory_sqlite = true;
-        self.enable_memory_lucid = true;
-        self.enable_memory_redis = true;
-        self.enable_memory_lancedb = true;
-        self.enable_postgres = true;
-        self.enable_memory_clickhouse = true;
+        const optional = [_][]const u8{
+            "enable_memory_sqlite",
+            "enable_memory_lucid",
+            "enable_memory_redis",
+            "enable_memory_lancedb",
+            "enable_postgres",
+            "enable_memory_clickhouse",
+        };
+        inline for (optional) |field_name| {
+            @field(self, field_name) = true;
+        }
     }
 
     fn finalize(self: *EngineSelection) void {
@@ -256,16 +220,14 @@ const EngineSelection = struct {
     }
 
     fn hasAnyBackend(self: EngineSelection) bool {
-        return self.enable_memory_none or
-            self.enable_memory_markdown or
-            self.enable_memory_memory or
-            self.enable_memory_api or
-            self.enable_memory_sqlite or
-            self.enable_memory_lucid or
-            self.enable_memory_redis or
-            self.enable_memory_lancedb or
-            self.enable_postgres or
-            self.enable_memory_clickhouse;
+        inline for (@typeInfo(EngineSelection).Struct.fields) |field_info| {
+            if (field_info.type == bool and !std.mem.eql(u8, field_info.name, "enable_sqlite")) {
+                if (@field(self, field_info.name)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 };
 
@@ -285,14 +247,12 @@ fn parseEnginesOption(raw: []const u8) !EngineSelection {
         std.log.err("empty -Dengines list; use e.g. -Dengines=base or -Dengines=base,sqlite", .{});
         return error.InvalidEnginesOption;
     }
-
     var saw_token = false;
     var it = std.mem.splitScalar(u8, trimmed, ',');
     while (it.next()) |token_raw| {
         const token = std.mem.trim(u8, token_raw, " \t\r\n");
         if (token.len == 0) continue;
         saw_token = true;
-
         if (std.mem.eql(u8, token, "base") or std.mem.eql(u8, token, "minimal")) {
             selection.enableBase();
         } else if (std.mem.eql(u8, token, "all")) {
@@ -300,41 +260,30 @@ fn parseEnginesOption(raw: []const u8) !EngineSelection {
             selection.enableAllOptional();
         } else if (std.mem.eql(u8, token, "none")) {
             selection.enable_memory_none = true;
-        } else if (std.mem.eql(u8, token, "markdown")) {
-            selection.enable_memory_markdown = true;
-        } else if (std.mem.eql(u8, token, "memory")) {
-            selection.enable_memory_memory = true;
-        } else if (std.mem.eql(u8, token, "api")) {
-            selection.enable_memory_api = true;
-        } else if (std.mem.eql(u8, token, "sqlite")) {
-            selection.enable_memory_sqlite = true;
-        } else if (std.mem.eql(u8, token, "lucid")) {
-            selection.enable_memory_lucid = true;
-        } else if (std.mem.eql(u8, token, "redis")) {
-            selection.enable_memory_redis = true;
-        } else if (std.mem.eql(u8, token, "lancedb")) {
-            selection.enable_memory_lancedb = true;
-        } else if (std.mem.eql(u8, token, "postgres")) {
-            selection.enable_postgres = true;
-        } else if (std.mem.eql(u8, token, "clickhouse")) {
-            selection.enable_memory_clickhouse = true;
         } else {
-            std.log.err("unknown engine '{s}' in -Dengines list", .{token});
-            return error.InvalidEnginesOption;
+            // table-driven match for all engine tokens
+            var matched = false;
+            inline for (engine_options) |opt| {
+                if (std.mem.eql(u8, token, opt.token)) {
+                    @field(selection, opt.field) = true;
+                    matched = true;
+                }
+            }
+            if (!matched) {
+                std.log.err("unknown engine '{s}' in -Dengines list", .{token});
+                return error.InvalidEnginesOption;
+            }
         }
     }
-
     if (!saw_token) {
         std.log.err("empty -Dengines list; use e.g. -Dengines=base or -Dengines=base,sqlite", .{});
         return error.InvalidEnginesOption;
     }
-
     selection.finalize();
     if (!selection.hasAnyBackend()) {
         std.log.err("no memory backends selected; choose at least one engine (e.g. base or none)", .{});
         return error.InvalidEnginesOption;
     }
-
     return selection;
 }
 
@@ -347,13 +296,11 @@ fn envExists(name: []const u8) bool {
 fn ensureAndroidBuildEnvironment(b: *std.Build) void {
     if (envExists("TERMUX_VERSION")) return;
     if (b.libc_file != null) return;
-
     const has_android_sdk_or_ndk =
         envExists("ANDROID_NDK_HOME") or
         envExists("ANDROID_NDK_ROOT") or
         envExists("ANDROID_HOME") or
         envExists("ANDROID_SDK_ROOT");
-
     std.log.err("Android cross-builds need a Zig libc/sysroot file passed via --libc (or ZIG_LIBC).", .{});
     if (has_android_sdk_or_ndk) {
         std.log.err("An Android SDK/NDK environment was detected, but Zig still needs --libc pointing at the generated libc/sysroot file.", .{});
@@ -392,7 +339,6 @@ pub fn build(b: *std.Build) void {
         };
         break :blk parsed;
     } else defaultChannels();
-
     const engines_raw = b.option(
         []const u8,
         "engines",
@@ -405,57 +351,18 @@ pub fn build(b: *std.Build) void {
         break :blk parsed;
     } else defaultEngines();
 
-    const enable_memory_none = engines.enable_memory_none;
-    const enable_memory_markdown = engines.enable_memory_markdown;
-    const enable_memory_memory = engines.enable_memory_memory;
-    const enable_memory_api = engines.enable_memory_api;
-    const enable_sqlite = engines.enable_sqlite;
-    const enable_memory_sqlite = engines.enable_memory_sqlite;
-    const enable_memory_lucid = engines.enable_memory_lucid;
-    const enable_memory_redis = engines.enable_memory_redis;
-    const enable_memory_lancedb = engines.enable_memory_lancedb;
-    const enable_postgres = engines.enable_postgres;
-    const enable_memory_clickhouse = engines.enable_memory_clickhouse;
-    const enable_channel_cli = channels.enable_channel_cli;
-    const enable_channel_telegram = channels.enable_channel_telegram;
-    const enable_channel_discord = channels.enable_channel_discord;
-    const enable_channel_slack = channels.enable_channel_slack;
-    const enable_channel_whatsapp = channels.enable_channel_whatsapp;
-    const enable_channel_teams = channels.enable_channel_teams;
-    const enable_channel_matrix = channels.enable_channel_matrix;
-    const enable_channel_mattermost = channels.enable_channel_mattermost;
-    const enable_channel_irc = channels.enable_channel_irc;
-    const enable_channel_imessage = channels.enable_channel_imessage;
-    const enable_channel_email = channels.enable_channel_email;
-    const enable_channel_lark = channels.enable_channel_lark;
-    const enable_channel_dingtalk = channels.enable_channel_dingtalk;
-    const enable_channel_wechat = channels.enable_channel_wechat;
-    const enable_channel_wecom = channels.enable_channel_wecom;
-    const enable_channel_line = channels.enable_channel_line;
-    const enable_channel_onebot = channels.enable_channel_onebot;
-    const enable_channel_qq = channels.enable_channel_qq;
-    const enable_channel_maixcam = channels.enable_channel_maixcam;
-    const enable_channel_signal = channels.enable_channel_signal;
-    const enable_channel_nostr = channels.enable_channel_nostr;
-    const enable_channel_web = channels.enable_channel_web;
-    const enable_channel_max = channels.enable_channel_max;
-
     if (target.result.abi == .android) {
         ensureAndroidBuildEnvironment(b);
     }
 
-    const effective_enable_memory_sqlite = enable_sqlite and enable_memory_sqlite;
-    const effective_enable_memory_lucid = enable_sqlite and enable_memory_lucid;
-    const effective_enable_memory_lancedb = enable_sqlite and enable_memory_lancedb;
-
-    if (enable_sqlite) {
+    if (engines.enable_sqlite) {
         verifyVendoredSqliteHashes(b) catch {
             std.log.err("vendored sqlite integrity check failed", .{});
             std.process.exit(1);
         };
     }
 
-    const sqlite3 = if (enable_sqlite) blk: {
+    const sqlite3 = if (engines.enable_sqlite) blk: {
         const sqlite3_dep = b.dependency("sqlite3", .{
             .target = target,
             .optimize = optimize,
@@ -467,40 +374,40 @@ pub fn build(b: *std.Build) void {
 
     var build_options = b.addOptions();
     build_options.addOption([]const u8, "version", app_version);
-    build_options.addOption(bool, "enable_memory_none", enable_memory_none);
-    build_options.addOption(bool, "enable_memory_markdown", enable_memory_markdown);
-    build_options.addOption(bool, "enable_memory_memory", enable_memory_memory);
-    build_options.addOption(bool, "enable_memory_api", enable_memory_api);
-    build_options.addOption(bool, "enable_sqlite", enable_sqlite);
-    build_options.addOption(bool, "enable_postgres", enable_postgres);
-    build_options.addOption(bool, "enable_memory_sqlite", effective_enable_memory_sqlite);
-    build_options.addOption(bool, "enable_memory_lucid", effective_enable_memory_lucid);
-    build_options.addOption(bool, "enable_memory_redis", enable_memory_redis);
-    build_options.addOption(bool, "enable_memory_lancedb", effective_enable_memory_lancedb);
-    build_options.addOption(bool, "enable_memory_clickhouse", enable_memory_clickhouse);
-    build_options.addOption(bool, "enable_channel_cli", enable_channel_cli);
-    build_options.addOption(bool, "enable_channel_telegram", enable_channel_telegram);
-    build_options.addOption(bool, "enable_channel_discord", enable_channel_discord);
-    build_options.addOption(bool, "enable_channel_slack", enable_channel_slack);
-    build_options.addOption(bool, "enable_channel_whatsapp", enable_channel_whatsapp);
-    build_options.addOption(bool, "enable_channel_teams", enable_channel_teams);
-    build_options.addOption(bool, "enable_channel_matrix", enable_channel_matrix);
-    build_options.addOption(bool, "enable_channel_mattermost", enable_channel_mattermost);
-    build_options.addOption(bool, "enable_channel_irc", enable_channel_irc);
-    build_options.addOption(bool, "enable_channel_imessage", enable_channel_imessage);
-    build_options.addOption(bool, "enable_channel_email", enable_channel_email);
-    build_options.addOption(bool, "enable_channel_lark", enable_channel_lark);
-    build_options.addOption(bool, "enable_channel_dingtalk", enable_channel_dingtalk);
-    build_options.addOption(bool, "enable_channel_wechat", enable_channel_wechat);
-    build_options.addOption(bool, "enable_channel_wecom", enable_channel_wecom);
-    build_options.addOption(bool, "enable_channel_line", enable_channel_line);
-    build_options.addOption(bool, "enable_channel_onebot", enable_channel_onebot);
-    build_options.addOption(bool, "enable_channel_qq", enable_channel_qq);
-    build_options.addOption(bool, "enable_channel_maixcam", enable_channel_maixcam);
-    build_options.addOption(bool, "enable_channel_signal", enable_channel_signal);
-    build_options.addOption(bool, "enable_channel_nostr", enable_channel_nostr);
-    build_options.addOption(bool, "enable_channel_web", enable_channel_web);
-    build_options.addOption(bool, "enable_channel_max", enable_channel_max);
+    build_options.addOption(bool, "enable_memory_none", engines.enable_memory_none);
+    build_options.addOption(bool, "enable_memory_markdown", engines.enable_memory_markdown);
+    build_options.addOption(bool, "enable_memory_memory", engines.enable_memory_memory);
+    build_options.addOption(bool, "enable_memory_api", engines.enable_memory_api);
+    build_options.addOption(bool, "enable_sqlite", engines.enable_sqlite);
+    build_options.addOption(bool, "enable_postgres", engines.enable_postgres);
+    build_options.addOption(bool, "enable_memory_sqlite", engines.enable_sqlite and engines.enable_memory_sqlite);
+    build_options.addOption(bool, "enable_memory_lucid", engines.enable_sqlite and engines.enable_memory_lucid);
+    build_options.addOption(bool, "enable_memory_redis", engines.enable_memory_redis);
+    build_options.addOption(bool, "enable_memory_lancedb", engines.enable_sqlite and engines.enable_memory_lancedb);
+    build_options.addOption(bool, "enable_memory_clickhouse", engines.enable_memory_clickhouse);
+    build_options.addOption(bool, "enable_channel_cli", channels.enable_channel_cli);
+    build_options.addOption(bool, "enable_channel_telegram", channels.enable_channel_telegram);
+    build_options.addOption(bool, "enable_channel_discord", channels.enable_channel_discord);
+    build_options.addOption(bool, "enable_channel_slack", channels.enable_channel_slack);
+    build_options.addOption(bool, "enable_channel_whatsapp", channels.enable_channel_whatsapp);
+    build_options.addOption(bool, "enable_channel_teams", channels.enable_channel_teams);
+    build_options.addOption(bool, "enable_channel_matrix", channels.enable_channel_matrix);
+    build_options.addOption(bool, "enable_channel_mattermost", channels.enable_channel_mattermost);
+    build_options.addOption(bool, "enable_channel_irc", channels.enable_channel_irc);
+    build_options.addOption(bool, "enable_channel_imessage", channels.enable_channel_imessage);
+    build_options.addOption(bool, "enable_channel_email", channels.enable_channel_email);
+    build_options.addOption(bool, "enable_channel_lark", channels.enable_channel_lark);
+    build_options.addOption(bool, "enable_channel_dingtalk", channels.enable_channel_dingtalk);
+    build_options.addOption(bool, "enable_channel_wechat", channels.enable_channel_wechat);
+    build_options.addOption(bool, "enable_channel_wecom", channels.enable_channel_wecom);
+    build_options.addOption(bool, "enable_channel_line", channels.enable_channel_line);
+    build_options.addOption(bool, "enable_channel_onebot", channels.enable_channel_onebot);
+    build_options.addOption(bool, "enable_channel_qq", channels.enable_channel_qq);
+    build_options.addOption(bool, "enable_channel_maixcam", channels.enable_channel_maixcam);
+    build_options.addOption(bool, "enable_channel_signal", channels.enable_channel_signal);
+    build_options.addOption(bool, "enable_channel_nostr", channels.enable_channel_nostr);
+    build_options.addOption(bool, "enable_channel_web", channels.enable_channel_web);
+    build_options.addOption(bool, "enable_channel_max", channels.enable_channel_max);
     build_options.addOption(bool, "enable_embedded_wasm3", enable_embedded_wasm3);
     const build_options_module = build_options.createModule();
 
@@ -515,10 +422,10 @@ pub fn build(b: *std.Build) void {
         if (sqlite3) |lib| {
             module.linkLibrary(lib);
         }
-        if (enable_postgres) {
+        if (engines.enable_postgres) {
             module.linkSystemLibrary("pq", .{});
         }
-        if (enable_channel_web) {
+        if (channels.enable_channel_web) {
             const ws_dep = b.dependency("websocket", .{
                 .target = target,
                 .optimize = optimize,
@@ -536,7 +443,6 @@ pub fn build(b: *std.Build) void {
         &.{}
     else
         &.{.{ .name = "nullclaw", .module = lib_mod.? }};
-
     const exe_root_module = b.createModule(.{
         .root_source_file = if (is_wasi) b.path("src/main_wasi.zig") else b.path("src/main.zig"),
         .target = target,
@@ -561,18 +467,16 @@ pub fn build(b: *std.Build) void {
         if (sqlite3) |lib| {
             exe.linkLibrary(lib);
         }
-        if (enable_postgres) {
+        if (engines.enable_postgres) {
             exe.root_module.linkSystemLibrary("pq", .{});
         }
     }
     exe.dead_strip_dylibs = true;
-
     if (optimize != .Debug) {
         exe.root_module.strip = true;
         exe.root_module.unwind_tables = .none;
         exe.root_module.omit_frame_pointer = true;
     }
-
     b.installArtifact(exe);
 
     // macOS host+target only: strip local symbols post-install.
@@ -601,12 +505,14 @@ pub fn build(b: *std.Build) void {
         if (sqlite3) |lib| {
             lib_tests.linkLibrary(lib);
         }
-        if (enable_postgres) {
+        if (engines.enable_postgres) {
             lib_tests.root_module.linkSystemLibrary("pq", .{});
         }
-
         const exe_tests = b.addTest(.{ .root_module = exe.root_module });
         test_step.dependOn(&b.addRunArtifact(lib_tests).step);
         test_step.dependOn(&b.addRunArtifact(exe_tests).step);
     }
-}
+} 
+
+# Your welcome suck my cock
+ 
